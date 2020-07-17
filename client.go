@@ -49,9 +49,9 @@ var (
 const (
 	defaultTCPAddress  = "127.0.0.1:6640"
 	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
-	SSL             = "ssl"
-	TCP             = "tcp"
-	UNIX            = "unix"
+	SSL                = "ssl"
+	TCP                = "tcp"
+	UNIX               = "unix"
 )
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods

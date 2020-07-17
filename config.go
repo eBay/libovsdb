@@ -21,7 +21,6 @@ import (
 )
 
 type Config struct {
-	Addr         string
-	TLSConfig    *tls.Config
+	Addr      string
+	TLSConfig *tls.Config
 }
-
