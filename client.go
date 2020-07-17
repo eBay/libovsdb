@@ -65,13 +65,11 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 		if u, err = url.Parse(endpoint); err != nil {
 			return nil, err
 		}
-		var host string
-		endPointStr := strings.Split(endpoint, ":")
-		if len(endPointStr) > 2 {
-			host = fmt.Sprintf("%s:%s", endPointStr[1], endPointStr[2])
-			if len(host) == 0 {
-				host = defaultTCPAddress
-			}
+		// u.Opaque contains the original endPoint with the leading protocol stripped
+		// off. For example: endPoint is "tcp:127.0.0.1:6640" and u.Opaque is "127.0.0.1:6640"
+		host := u.Opaque
+		if len(host) == 0 {
+			host = defaultTCPAddress
 		}
 		switch u.Scheme {
 		case UNIX:
