@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 )
 
+// Config is a structure used in provisioning a connection to ovsdb.
 type Config struct {
 	Addr      string
 	TLSConfig *tls.Config

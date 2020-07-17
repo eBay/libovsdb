@@ -15,8 +15,6 @@ var quit chan bool
 var update chan *libovsdb.TableUpdates
 var cache map[string]map[string]libovsdb.Row
 
-const PROTOCOL = "tcp"
-
 func play(ovs *libovsdb.OvsdbClient) {
 	go processInput(ovs)
 	for {
@@ -58,7 +56,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	uuidParameter := libovsdb.UUID{GoUUID: getRootUUID()}
-	mutateUUID := []libovsdb.UUID{{namedUUID}}
+	mutateUUID := []libovsdb.UUID{{GoUUID: namedUUID}}
 	mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
 	mutation := libovsdb.NewMutation("bridges", "insert", mutateSet)
 	condition := libovsdb.NewCondition("_uuid", "==", uuidParameter)

@@ -46,6 +46,7 @@ var (
 	connectionsMutex = &sync.RWMutex{}
 )
 
+// Constants defined for libovsdb
 const (
 	defaultTCPAddress  = "127.0.0.1:6640"
 	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
@@ -250,7 +251,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("invalid Database %q Schema", database))
+		return nil, fmt.Errorf("invalid Database %q Schema", database)
 	}
 
 	if ok := db.validateOperations(operation...); !ok {
@@ -269,7 +270,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("invalid Database %q Schema", database))
+		return nil, fmt.Errorf("invalid Database %q Schema", database)
 	}
 
 	requests := make(map[string]MonitorRequest)
