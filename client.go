@@ -18,7 +18,7 @@ import (
 // OvsdbClient is an OVSDB client
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
-	Schema        map[string]DatabaseSchema
+	Schema        map[string]*DatabaseSchema
 	handlers      []NotificationHandler
 	handlersMutex *sync.Mutex
 }
@@ -26,7 +26,7 @@ type OvsdbClient struct {
 func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 	ovs := &OvsdbClient{
 		rpcClient:     c,
-		Schema:        make(map[string]DatabaseSchema),
+		Schema:        make(map[string]*DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
 	return ovs
@@ -108,7 +108,7 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 	for _, db := range dbs {
 		schema, err := ovs.GetSchema(db)
 		if err == nil {
-			ovs.Schema[db] = *schema
+			ovs.Schema[db] = schema
 		} else {
 			c.Close()
 			return nil, err
@@ -232,7 +232,7 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	if err != nil {
 		return nil, err
 	}
-	ovs.Schema[dbName] = reply
+	ovs.Schema[dbName] = &reply
 	return &reply, err
 }
 
