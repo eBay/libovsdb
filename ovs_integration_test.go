@@ -26,6 +26,8 @@ func SetConfig() {
 	var ovsDb = os.Getenv("OVS_DB")
 	if ovsDb == "" {
 		cfg.Addr = "unix:" + ovsRunDir + "/" + defOvsSocket
+	} else {
+		cfg.Addr = ovsDb
 	}
 }
 
