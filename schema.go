@@ -14,6 +14,25 @@ type DatabaseSchema struct {
 	Tables  map[string]TableSchema `json:"tables"`
 }
 
+// GetColumn returns a Column Schema for a given table and column name
+func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSchema, error) {
+	table, ok := schema.Tables[tableName]
+	if !ok {
+		return nil, fmt.Errorf("Table not found in schema %s", tableName)
+	}
+	if columnName == "_uuid" {
+		return &ColumnSchema{
+			Name: "_uuid",
+			Type: TypeUUID,
+		}, nil
+	}
+	column, ok := table.Columns[columnName]
+	if !ok {
+		return nil, fmt.Errorf("Column not found in schema %s", columnName)
+	}
+	return column, nil
+}
+
 // Print will print the contents of the DatabaseSchema
 func (schema *DatabaseSchema) Print(w io.Writer) {
 	fmt.Fprintf(w, "%s, (%s)\n", schema.Name, schema.Version)
