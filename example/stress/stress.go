@@ -29,6 +29,19 @@ var (
 	}
 )
 
+// ORMBridge is the ORM model that we'll use to extract data from the Bridge table
+type ORMBridge struct {
+	Name        string            `ovs:"name"`
+	Config      map[string]string `ovs:"other_config"`
+	ExternalIds map[string]string `ovs:"external_ids"`
+	Datapath    []string          `ovs:"datapath_id"`
+}
+
+// ORMOpenvSwitch is the ORM model that we'll use to extract data from the Open_vSwitch table
+type ORMOpenvSwitch struct {
+	Bridges []string `ovs:"bridges"`
+}
+
 func list() {
 	ovs, err := libovsdb.Connect(*connection, nil)
 	if err != nil {
@@ -104,6 +117,11 @@ func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 	if err != nil {
 		panic("Cannot access Native API")
 	}
+	oapi, err := ovs.ORM("Open_vSwitch")
+	if err != nil {
+		panic("Cannot access ORM API")
+	}
+
 	for table, tableUpdate := range updates.Updates {
 		if _, ok := cache[table]; !ok {
 			cache[table] = make(map[string]interface{})
@@ -118,6 +136,29 @@ func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 					}
 
 					cache[table][uuid] = rowData
+					if *verbose {
+						fmt.Printf("bridge is %+v\n", rowData)
+					}
+				} else if *api == "orm" {
+					var err error
+					if table == "Open_vSwitch" {
+						var oovs ORMOpenvSwitch
+						err = oapi.GetRowData(table, &row.New, &oovs)
+						cache[table][uuid] = oovs
+						if *verbose {
+							fmt.Printf("Open_vSwitch is %+v\n", oovs)
+						}
+					} else if table == "Bridge" {
+						var bridge ORMBridge
+						err = oapi.GetRowData(table, &row.New, &bridge)
+						cache[table][uuid] = bridge
+						if *verbose {
+							fmt.Printf("bridge is %+v\n", bridge)
+						}
+					}
+					if err != nil {
+						log.Fatal(err)
+					}
 
 				} else {
 					cache[table][uuid] = row.New
@@ -149,6 +190,23 @@ func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 			log.Fatal(err)
 		}
 		mutCondition, err = napi.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if *api == "orm" {
+		oapi, err := ovs.NativeAPI("Open_vSwitch")
+		if err != nil {
+			panic("Cannot access ORM API")
+		}
+		delCondition, err = oapi.NewCondition("Bridge", "_uuid", "==", uuid)
+		if err != nil {
+			log.Fatal(err)
+		}
+		mutation, err = oapi.NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
+		if err != nil {
+			log.Fatal(err)
+		}
+		mutCondition, err = oapi.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -186,6 +244,7 @@ func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 
 func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	bridge := make(map[string]interface{})
+	var err error
 	namedUUID := "gopher"
 	bridgeName := fmt.Sprintf("bridge-%d", iter)
 	if *api == "native" {
@@ -212,7 +271,25 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+	} else if *api == "orm" {
+		var oapi *libovsdb.ORMAPI
+		oapi, err = ovs.ORM("Open_vSwitch")
+		obridge := ORMBridge{
+			Name: bridgeName,
+			Config: map[string]string{
+				"foo":  "bar",
+				"fake": "config",
+			},
+			ExternalIds: map[string]string{
+				"key1": "val1",
+				"key2": "val2",
+			},
+			Datapath: []string{"someDatapath"},
+		}
+		bridge, err = oapi.NewRow("Bridge", &obridge)
+		if err != nil {
+			log.Fatal(err)
+		}
 	} else {
 		datapathID, _ := libovsdb.NewOvsSet([]string{"blablabla"})
 		otherConfig, _ := libovsdb.NewOvsMap(map[string]string{
@@ -239,7 +316,6 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 
 	var mutation []interface{}
 	var condition []interface{}
-	var err error
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	if *api == "native" {

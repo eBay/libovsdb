@@ -371,3 +371,12 @@ func (ovs OvsdbClient) NativeAPI(db string) (*NativeAPI, error) {
 	}
 	return NewNativeAPI(&schema), nil
 }
+
+// ORM returns a ORM API object associated with the provided db name
+func (ovs OvsdbClient) ORM(db string) (*ORMAPI, error) {
+	schema, ok := ovs.Schema[db]
+	if !ok {
+		return nil, fmt.Errorf("Database not found %s", db)
+	}
+	return NewORMAPI(&schema), nil
+}
