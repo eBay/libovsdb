@@ -21,6 +21,10 @@ var update chan *libovsdb.TableUpdates
 var cache map[string]map[string]libovsdb.Row
 
 func play(ovs *libovsdb.OvsdbClient) {
+	api, err := ovs.NativeAPI(ovsDb)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot access NativeAPI: %s", err))
+	}
 	go processInput(ovs)
 	for {
 		select {
@@ -28,7 +32,7 @@ func play(ovs *libovsdb.OvsdbClient) {
 			for table, tableUpdate := range currUpdate.Updates {
 				if table == bridgeTable {
 					for uuid, row := range tableUpdate.Rows {
-						rowData, err := ovs.Apis[ovsDb].GetRowData(bridgeTable, &row.New)
+						rowData, err := api.GetRowData(bridgeTable, &row.New)
 						if err != nil {
 							fmt.Println("ERROR getting Bridge Data", err)
 						}
@@ -49,7 +53,11 @@ func play(ovs *libovsdb.OvsdbClient) {
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
-	api := ovs.Apis[ovsDb]
+	api, err := ovs.NativeAPI(ovsDb)
+	if err != nil {
+		fmt.Printf("Cannot access Native API: %s", err.Error())
+		os.Exit(1)
+	}
 	namedUUID := "gopher"
 	// bridge row to insert
 	bridge := make(map[string]interface{})

@@ -14,7 +14,7 @@ import (
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 var memprofile = flag.String("memoryprofile", "", "write memory profile to this file")
-var api = flag.String("api", "", "api to use: [legacy (default), native]")
+var api = flag.String("api", "legacy", "api to use: [legacy (default), native]")
 var nins = flag.Int("ninserts", 100, "insert this number of elements in the database")
 var verbose = flag.Bool("verbose", false, "Be verbose")
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
@@ -100,6 +100,10 @@ func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bo
 
 func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 	cache = make(map[string]map[string]interface{})
+	napi, err := ovs.NativeAPI("Open_vSwitch")
+	if err != nil {
+		panic("Cannot access Native API")
+	}
 	for table, tableUpdate := range updates.Updates {
 		if _, ok := cache[table]; !ok {
 			cache[table] = make(map[string]interface{})
@@ -108,7 +112,7 @@ func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 			empty := libovsdb.Row{}
 			if !reflect.DeepEqual(row.New, empty) {
 				if *api == "native" {
-					rowData, err := ovs.Apis["Open_vSwitch"].GetRowData(table, &row.New)
+					rowData, err := napi.GetRowData(table, &row.New)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -127,21 +131,24 @@ func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 }
 
 func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
-	var err error
 	var mutation []interface{}
 	var delCondition []interface{}
 	var mutCondition []interface{}
 
 	if *api == "native" {
-		delCondition, err = ovs.Apis["Open_vSwitch"].NewCondition("Bridge", "_uuid", "==", uuid)
+		napi, err := ovs.NativeAPI("Open_vSwitch")
+		if err != nil {
+			panic("Cannot access Native API")
+		}
+		delCondition, err = napi.NewCondition("Bridge", "_uuid", "==", uuid)
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
+		mutation, err = napi.NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutCondition, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
+		mutCondition, err = napi.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -182,8 +189,11 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	namedUUID := "gopher"
 	bridgeName := fmt.Sprintf("bridge-%d", iter)
 	if *api == "native" {
+		napi, err := ovs.NativeAPI("Open_vSwitch")
+		if err != nil {
+			panic("Cannot access Native API")
+		}
 		nbridge := make(map[string]interface{})
-		var err error
 		datapathID := []string{"blablabla"}
 		otherConfig := map[string]string{
 			"foo":  "bar",
@@ -195,10 +205,10 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 		}
 		nbridge["name"] = bridgeName
 		nbridge["other_config"] = otherConfig
-		bridge["datapath_id"] = datapathID
+		nbridge["datapath_id"] = datapathID
 		nbridge["external_ids"] = externalIds
 
-		bridge, err = ovs.Apis["Open_vSwitch"].NewRow("Bridge", nbridge)
+		bridge, err = napi.NewRow("Bridge", nbridge)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -233,12 +243,17 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	if *api == "native" {
+		var napi *libovsdb.NativeAPI
+		napi, err = ovs.NativeAPI("Open_vSwitch")
+		if err != nil {
+			panic("Cannot access Native API")
+		}
 		// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
+		mutation, err = napi.NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
 		if err != nil {
 			log.Fatalf("Mutation Error: %s", err.Error())
 		}
-		condition, err = ovs.Apis["Open_vSwitch"].NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
+		condition, err = napi.NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatalf("Condition Error: %s", err.Error())
 		}
@@ -277,6 +292,8 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
+
+	fmt.Printf("API Selected: %s\n", *api)
 
 	run()
 	list()

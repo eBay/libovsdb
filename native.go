@@ -38,8 +38,8 @@ type NativeAPI struct {
 }
 
 // NewNativeAPI returns a NativeAPI
-func NewNativeAPI(schema *DatabaseSchema) NativeAPI {
-	return NativeAPI{
+func NewNativeAPI(schema *DatabaseSchema) *NativeAPI {
+	return &NativeAPI{
 		schema: schema,
 	}
 }
