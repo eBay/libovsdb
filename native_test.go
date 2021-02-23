@@ -7,169 +7,8 @@ import (
 	"testing"
 )
 
-var testSchema = []byte(`{
-  "cksum": "223619766 22548",
-  "name": "TestSchema",
-  "tables": {
-    "TestTable": {
-      "columns": {
-        "aString": {
-          "type": "string"
-        },
-        "aSet": {
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
-        },
-        "anotherSet": {
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0,
-            "max": 1
-          }
-        },
-        "aUUIDSet": {
-          "type": {
-            "key": {
-              "refTable": "SomeOtherTAble",
-              "refType": "weak",
-              "type": "uuid"
-            },
-            "min": 0
-          }
-        },
-        "aUUID": {
-          "type": {
-            "key": {
-              "refTable": "SomeOtherTAble",
-              "refType": "weak",
-              "type": "uuid"
-            },
-            "min": 1,
-            "max": 1
-          }
-        },
-        "aIntSet": {
-          "type": {
-            "key": {
-              "type": "integer"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        },
-        "aFloat": {
-          "type": {
-            "key": {
-              "type": "real"
-            }
-          }
-        },
-        "aFloatSet": {
-          "type": {
-            "key": {
-              "type": "real"
-            },
-            "min": 0,
-            "max": 10
-          }
-        },
-        "aEmptySet": {
-          "type": {
-            "key": {
-              "type": "string"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        },
-        "aEnum": {
-          "type": {
-            "key": {
-              "enum": [
-                "set",
-                [
-                  "enum1",
-                  "enum2",
-                  "enum3"
-                ]
-              ],
-              "type": "string"
-            }
-          }
-        },
-        "aMap": {
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0,
-            "value": "string"
-          }
-	}
-      }
-    }
-  }
-}`)
-
-//
-// When going Native -> OvS:
-//	map -> *OvsMap
-//	slice -> *OvsSet
-// However, when going OvS -> Native
-//	OvsMap -> map
-//	OvsSet -> slice
-// Perform indirection of ovs fields to be compared
-// with the ones that wre used initially
-func expectedOvs(in interface{}) interface{} {
-	switch in.(type) {
-	case *OvsSet:
-		return *(in.(*OvsSet))
-	case *OvsMap:
-		return *(in.(*OvsMap))
-	default:
-		return in
-	}
-}
-func getNativeMap() map[string]interface{} {
-	return map[string]interface{}{
-		"aString":  aString,
-		"aSet":     aSet,
-		"aUUIDSet": aUUIDSet,
-		"aMap":     aMap,
-		"aUUID":    aUUID0,
-		"aIntSet":  aIntSet,
-	}
-}
-
-func GetOvsRow() Row {
-	ovsRow := Row{Fields: make(map[string]interface{})}
-	ovsRow.Fields["aString"] = aString
-	s, _ := NewOvsSet(aSet)
-	ovsRow.Fields["aSet"] = *s
-
-	us := make([]UUID, 0)
-	for _, u := range aUUIDSet {
-		us = append(us, UUID{GoUUID: u})
-	}
-	ovsUs, _ := NewOvsSet(us)
-	ovsRow.Fields["aUUIDSet"] = *ovsUs
-	m, _ := NewOvsMap(aMap)
-	ovsRow.Fields["aMap"] = *m
-	ovsRow.Fields["aUUID"] = UUID{GoUUID: aUUID0}
-	is, e := NewOvsSet(aIntSet)
-	if e != nil {
-		fmt.Printf("%s", e.Error())
-	}
-
-	ovsRow.Fields["aIntSet"] = *is
-	return ovsRow
-}
-
 func TestGetData(t *testing.T) {
-	ovsRow := GetOvsRow()
+	ovsRow := getOvsTestRow()
 
 	/* Code under test */
 	var schema DatabaseSchema
@@ -207,7 +46,7 @@ func TestGetData(t *testing.T) {
 }
 
 func TestNewRow(t *testing.T) {
-	ovsRow := GetOvsRow()
+	ovsRow := getOvsTestRow()
 
 	/* Code under test */
 	var schema DatabaseSchema
@@ -215,7 +54,7 @@ func TestNewRow(t *testing.T) {
 		t.Error(err)
 	}
 	nf := NativeAPI{schema: &schema}
-	row, err := nf.NewRow("TestTable", getNativeMap())
+	row, err := nf.NewRow("TestTable", getNativeTestMap())
 	if err != nil {
 		t.Error(err)
 	}
