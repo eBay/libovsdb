@@ -14,22 +14,18 @@ type DatabaseSchema struct {
 	Tables  map[string]TableSchema `json:"tables"`
 }
 
+// UUIDColumn is a static column that represents the _uuid column, common to all tables
+var UUIDColumn = ColumnSchema{
+	Type: TypeUUID,
+}
+
 // GetColumn returns a Column Schema for a given table and column name
 func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSchema, error) {
 	table, ok := schema.Tables[tableName]
 	if !ok {
-		return nil, fmt.Errorf("Table not found in schema %s", tableName)
+		return nil, NewErrNoTable(tableName)
 	}
-	if columnName == "_uuid" {
-		return &ColumnSchema{
-			Type: TypeUUID,
-		}, nil
-	}
-	column, ok := table.Columns[columnName]
-	if !ok {
-		return nil, fmt.Errorf("Column not found in schema %s", columnName)
-	}
-	return column, nil
+	return table.GetColumn(columnName)
 }
 
 // Print will print the contents of the DatabaseSchema
@@ -82,6 +78,18 @@ func (schema DatabaseSchema) validateOperations(operations ...Operation) bool {
 type TableSchema struct {
 	Columns map[string]*ColumnSchema `json:"columns"`
 	Indexes [][]string               `json:"indexes,omitempty"`
+}
+
+// GetColumn returns the Column object for a specific column name
+func (t TableSchema) GetColumn(columnName string) (*ColumnSchema, error) {
+	if columnName == "_uuid" {
+		return &UUIDColumn, nil
+	}
+	column, ok := t.Columns[columnName]
+	if !ok {
+		return nil, fmt.Errorf("Column %s not found in table %v", columnName, t)
+	}
+	return column, nil
 }
 
 /*RFC7047 defines some atomic-types (e.g: integer, string, etc). However, the Column's type
