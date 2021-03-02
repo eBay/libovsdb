@@ -427,3 +427,203 @@ func TestNativeToOvsErr(t *testing.T) {
 		})
 	}
 }
+
+func TestIsDefault(t *testing.T) {
+	type Test struct {
+		name     string
+		column   []byte
+		elem     interface{}
+		expected bool
+	}
+	tests := []Test{
+		{
+			name:     "empty string",
+			column:   []byte(`{"type":"string"}`),
+			elem:     "",
+			expected: true,
+		},
+		{
+			name:     "non string",
+			column:   []byte(`{"type":"string"}`),
+			elem:     "something",
+			expected: false,
+		},
+		{
+			name:     "empty uuid",
+			column:   []byte(`{"type":"uuid"}`),
+			elem:     "",
+			expected: true,
+		},
+		{
+			name:     "default uuid",
+			column:   []byte(`{"type":"uuid"}`),
+			elem:     "00000000-0000-0000-0000-000000000000",
+			expected: true,
+		},
+		{
+			name:     "non-empty uuid",
+			column:   []byte(`{"type":"uuid"}`),
+			elem:     aUUID0,
+			expected: false,
+		},
+		{
+			name:     "zero int",
+			column:   []byte(`{"type":"integer"}`),
+			elem:     0,
+			expected: true,
+		},
+		{
+			name:     "non-zero int",
+			column:   []byte(`{"type":"integer"}`),
+			elem:     42,
+			expected: false,
+		},
+		{
+			name:     "non-zero float",
+			column:   []byte(`{"type":"real"}`),
+			elem:     42.0,
+			expected: false,
+		},
+		{
+			name:     "zero float",
+			column:   []byte(`{"type":"real"}`),
+			elem:     0.0,
+			expected: true,
+		},
+		{
+			name: "empty set ",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "max": "unlimited",
+       					     "min": 0
+       					   }
+       					 }`),
+			elem:     []string{},
+			expected: true,
+		},
+		{
+			name: "empty set allocated",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "max": "unlimited",
+       					     "min": 0
+       					   }
+       					 }`),
+			elem:     make([]string, 0, 10),
+			expected: true,
+		},
+		{
+			name: "non-empty set",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "max": "unlimited",
+       					     "min": 0
+       					   }
+       					 }`),
+			elem:     []string{"something"},
+			expected: false,
+		},
+		{
+			name: "empty map allocated",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "value": "string"
+       					   }
+       					 }`),
+			elem:     make(map[string]string, 0),
+			expected: true,
+		},
+		{
+			name: "nil map",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "value": "string"
+       					   }
+       					 }`),
+			elem:     nil,
+			expected: true,
+		},
+		{
+			name: "empty map",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "value": "string"
+       					   }
+       					 }`),
+			elem:     map[string]string{},
+			expected: true,
+		},
+		{
+			name: "non-empty map",
+			column: []byte(`{
+					   "type": {
+       					     "key": "string",
+       					     "value": "string"
+       					   }
+       					 }`),
+			elem:     map[string]string{"foo": "bar"},
+			expected: false,
+		},
+		{
+			name: "empty enum",
+			column: []byte(`{
+					"type":{
+				            "key": {
+				              "enum": [
+				                "set",
+				                [
+				                  "enum1",
+				                  "enum2",
+				                  "enum3"
+				                ]
+				              ],
+				              "type": "string"
+				            }
+				          }
+					}`),
+			elem:     "",
+			expected: true,
+		},
+		{
+			name: "non-empty enum",
+			column: []byte(`{
+					"type":{
+				            "key": {
+				              "enum": [
+				                "set",
+				                [
+				                  "enum1",
+				                  "enum2",
+				                  "enum3"
+				                ]
+				              ],
+				              "type": "string"
+				            }
+				          }
+					}`),
+			elem:     "enum1",
+			expected: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("IsDefault: %s", test.name), func(t *testing.T) {
+			var column ColumnSchema
+			if err := json.Unmarshal(test.column, &column); err != nil {
+				t.Fatal(err)
+			}
+
+			result := IsDefaultValue(&column, test.elem)
+			if result != test.expected {
+				t.Errorf("Failed to determine if %v is default. Expected %t got %t", test, test.expected, result)
+				t.Logf("Conversion schema %v", string(test.column))
+			}
+
+		})
+	}
+}

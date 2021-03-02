@@ -218,3 +218,36 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 		panic(fmt.Sprintf("Unknown Type: %v", column.Type))
 	}
 }
+
+// IsDefaultValue checks if a provided native element corresponds to the default value of its
+// designated column type
+func IsDefaultValue(column *ColumnSchema, nativeElem interface{}) bool {
+	switch column.Type {
+	case TypeEnum:
+		return isDefaultBaseValue(nativeElem, column.TypeObj.Key.Type)
+	default:
+		return isDefaultBaseValue(nativeElem, column.Type)
+	}
+}
+
+func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
+	value := reflect.ValueOf(elem)
+	if !value.IsValid() {
+		return true
+	}
+
+	switch etype {
+	case TypeUUID:
+		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == ""
+	case TypeMap, TypeSet:
+		return value.IsNil() || value.Len() == 0
+	case TypeString:
+		return elem.(string) == ""
+	case TypeInteger:
+		return elem.(int) == 0
+	case TypeReal:
+		return elem.(float64) == 0
+	default:
+		return false
+	}
+}
