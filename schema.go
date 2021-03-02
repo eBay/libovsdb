@@ -32,7 +32,12 @@ func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSch
 func (schema DatabaseSchema) Print(w io.Writer) {
 	fmt.Fprintf(w, "%s, (%s)\n", schema.Name, schema.Version)
 	for table, tableSchema := range schema.Tables {
-		fmt.Fprintf(w, "\t %s\n", table)
+		fmt.Fprintf(w, "\t %s", table)
+		if len(tableSchema.Indexes) > 0 {
+			fmt.Fprintf(w, "(%v)\n", tableSchema.Indexes)
+		} else {
+			fmt.Fprintf(w, "\n")
+		}
 		for column, columnSchema := range tableSchema.Columns {
 			fmt.Fprintf(w, "\t\t %s => %s\n", column, columnSchema)
 		}
