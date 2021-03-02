@@ -123,6 +123,10 @@ func (oa ORMAPI) NewRow(tableName string, data interface{}) (map[string]interfac
 		}
 
 		nativeElem := objVal.FieldByName(fieldName)
+		// Omit fields with default or nil value
+		if IsDefaultValue(column, nativeElem.Interface()) {
+			continue
+		}
 		ovsElem, err := NativeToOvs(column, nativeElem.Interface())
 		if err != nil {
 			return nil, fmt.Errorf("Table %s, Column %s: Failed to generate OvS element. %s", tableName, name, err.Error())
