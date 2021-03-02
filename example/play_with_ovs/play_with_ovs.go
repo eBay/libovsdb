@@ -20,10 +20,37 @@ var quit chan bool
 var update chan *libovsdb.TableUpdates
 var cache map[string]map[string]libovsdb.Row
 
+// ORMBridge is the ORM model that we'll use to extract data from the Bridge table
+type ORMBridge struct {
+	UUID                string            `ovs:"_uuid"`
+	McastSnoopingEnable bool              `ovs:"mcast_snooping_enable"`
+	OtherConfig         map[string]string `ovs:"other_config"`
+	FloodVlans          []int             `ovs:"flood_vlans"`
+	FlowTables          map[int]string    `ovs:"flow_tables"`
+	AutoAttach          []string          `ovs:"auto_attach"`
+	StpEnable           bool              `ovs:"stp_enable"`
+	Netflow             []string          `ovs:"netflow"`
+	Sflow               []string          `ovs:"sflow"`
+	Protocols           []string          `ovs:"protocols"`
+	FailMode            []string          `ovs:"fail_mode"`
+	ExternalIds         map[string]string `ovs:"external_ids"`
+	Mirrors             []string          `ovs:"mirrors"`
+	DatapathVersion     string            `ovs:"datapath_version"`
+	Ports               []string          `ovs:"ports"`
+	Status              map[string]string `ovs:"status"`
+	RstpStatus          map[string]string `ovs:"rstp_status"`
+	DatapathType        string            `ovs:"datapath_type"`
+	DatapathID          []string          `ovs:"datapath_id"`
+	RstpEnable          bool              `ovs:"rstp_enable"`
+	Ipfix               []string          `ovs:"ipfix"`
+	Controller          []string          `ovs:"controller"`
+	Name                string            `ovs:"name"`
+}
+
 func play(ovs *libovsdb.OvsdbClient) {
-	api, err := ovs.NativeAPI(ovsDb)
+	api, err := ovs.ORM(ovsDb)
 	if err != nil {
-		panic(fmt.Sprintf("Cannot access NativeAPI: %s", err))
+		panic(fmt.Sprintf("Cannot access ORM API : %s", err))
 	}
 	go processInput(ovs)
 	for {
@@ -32,17 +59,15 @@ func play(ovs *libovsdb.OvsdbClient) {
 			for table, tableUpdate := range currUpdate.Updates {
 				if table == bridgeTable {
 					for uuid, row := range tableUpdate.Rows {
-						rowData, err := api.GetRowData(bridgeTable, &row.New)
+						var bridge ORMBridge
+						err := api.GetRowData(bridgeTable, &row.New, &bridge)
 						if err != nil {
 							fmt.Println("ERROR getting Bridge Data", err)
 						}
-						if _, ok := rowData["name"]; ok {
-							name := rowData["name"].(string)
-							if name == "stop" {
-								fmt.Println("Bridge stop detected : ", uuid)
-								ovs.Disconnect()
-								quit <- true
-							}
+						if bridge.Name == "stop" {
+							fmt.Println("Bridge stop detected : ", uuid)
+							ovs.Disconnect()
+							quit <- true
 						}
 					}
 				}
@@ -53,18 +78,20 @@ func play(ovs *libovsdb.OvsdbClient) {
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
-	api, err := ovs.NativeAPI(ovsDb)
+	api, err := ovs.ORM(ovsDb)
 	if err != nil {
-		fmt.Printf("Cannot access Native API: %s", err.Error())
+		fmt.Printf("Cannot access ORM API: %s", err.Error())
 		os.Exit(1)
 	}
 	namedUUID := "gopher"
 	// bridge row to insert
-	bridge := make(map[string]interface{})
-	bridge["name"] = bridgeName
-	bridge["external_ids"] = map[string]string{"purpose": "fun"}
+	bridge := ORMBridge{
+		Name:        bridgeName,
+		ExternalIds: map[string]string{"purpose": "fun"},
+		OtherConfig: map[string]string{"some": "config"},
+	}
 
-	brow, err := api.NewRow(bridgeTable, bridge)
+	brow, err := api.NewRow(bridgeTable, &bridge)
 	if err != nil {
 		fmt.Printf("Row Error: %s", err.Error())
 		os.Exit(1)
