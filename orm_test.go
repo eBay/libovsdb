@@ -2,6 +2,7 @@ package libovsdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -105,5 +106,145 @@ func TestORMNewRow(t *testing.T) {
 				t.Logf("expected : %v\n", ovsRow.Fields[k])
 			}
 		}
+	}
+}
+
+func TestORMCondition(t *testing.T) {
+
+	var testSchema = []byte(`{
+  "cksum": "223619766 22548",
+  "name": "TestSchema",
+  "tables": {
+    "TestTable": {
+      "indexes": [["name"],["composed_1","composed_2"]],
+      "columns": {
+        "name": {
+          "type": "string"
+        },
+        "composed_1": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "composed_2": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "config": {
+          "type": {
+            "key": "string",
+            "max": "unlimited",
+            "min": 0,
+            "value": "string"
+          }
+	}
+      }
+    }
+  }
+}`)
+	type testType struct {
+		ID     string            `ovs:"_uuid"`
+		MyName string            `ovs:"name"`
+		Config map[string]string `ovs:"config"`
+		Comp1  string            `ovs:"composed_1"`
+		Comp2  string            `ovs:"composed_2"`
+	}
+
+	var schema DatabaseSchema
+	if err := json.Unmarshal(testSchema, &schema); err != nil {
+		t.Fatal(err)
+	}
+	api := ORMAPI{schema: &schema}
+
+	type Test struct {
+		name     string
+		obj      testType
+		expected []interface{}
+		index    []string
+		err      bool
+	}
+	tests := []Test{
+		{
+			name: "simple index",
+			obj: testType{
+				MyName: "foo",
+			},
+			expected: []interface{}{[]interface{}{"name", "==", "foo"}},
+			index:    []string{},
+			err:      false,
+		},
+		{
+			name: "UUID",
+			obj: testType{
+				ID:     aUUID0,
+				MyName: "foo",
+			},
+			expected: []interface{}{[]interface{}{"_uuid", "==", UUID{GoUUID: aUUID0}}},
+			index:    []string{},
+			err:      false,
+		},
+		{
+			name: "specify index",
+			obj: testType{
+				ID:     aUUID0,
+				MyName: "foo",
+			},
+			expected: []interface{}{[]interface{}{"name", "==", "foo"}},
+			index:    []string{"name"},
+			err:      false,
+		},
+		{
+			name: "complex index",
+			obj: testType{
+				Comp1: "foo",
+				Comp2: "bar",
+			},
+			expected: []interface{}{[]interface{}{"composed_1", "==", "foo"},
+				[]interface{}{"composed_2", "==", "bar"}},
+			index: []string{},
+			err:   false,
+		},
+		{
+			name: "first index",
+			obj: testType{
+				MyName: "something",
+				Comp1:  "foo",
+				Comp2:  "bar",
+			},
+			expected: []interface{}{[]interface{}{"name", "==", "something"}},
+			index:    []string{},
+			err:      false,
+		},
+		{
+			name: "Error: None",
+			obj: testType{
+				Config: map[string]string{"foo": "bar"},
+			},
+			index: []string{},
+			err:   true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("NewCondition_%s", test.name), func(t *testing.T) {
+			conds, err := api.NewCondition("TestTable", &test.obj, test.index...)
+			if test.err {
+				if err == nil {
+					t.Errorf("Expected an error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Error(err)
+				}
+			}
+
+			if !reflect.DeepEqual(conds, test.expected) {
+				t.Errorf("Wrong condition, expected %v (%s), got %v (%s)",
+					test.expected,
+					reflect.TypeOf(test.expected),
+					conds,
+					reflect.TypeOf(conds))
+			}
+		})
 	}
 }

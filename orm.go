@@ -34,6 +34,11 @@ func (e *ErrORM) Error() string {
 		e.objType, e.field, e.fieldType, e.fieldTag, e.reason)
 }
 
+// ormFields contains the field information of a ORM
+// It's a map [string] string. Where the key is the column name and the value is the name of the
+// field in which the value of such column shall be stored / read from
+type ormFields = map[string]string
+
 // NewORMAPI returns a new ORM API
 func NewORMAPI(schema *DatabaseSchema) *ORMAPI {
 	return &ORMAPI{
@@ -137,12 +142,78 @@ func (oa ORMAPI) NewRow(tableName string, data interface{}) (map[string]interfac
 
 }
 
-// ormField contains the field information of a ORM
-// It's a map [string] string. Where the key is the column name and the value is the name of the
-// field in which the value of such column shall be stored / read from
-type ormFields map[string]string
+// NewCondition returns a valid condition to be used inside a Operation
+// Use the native API
+//func (oa ORMAPI) NewCondition(tableName, columnName, function string, value interface{}) ([]interface{}, error) {
+//	return NativeAPI{schema: oa.schema}.NewCondition(tableName, columnName, function, value)
+//}
 
-//
+// NewCondition returns a list of conditions that match a given object
+// A list of valid columns that shall be used as a index can be provided.
+// If none are provided, we will try to use object's field that matches the '_uuid' ovs tag
+// If it does not exist or is null (""), then we will traverse all of the table indexes and
+// use the first index (list of simultaneously unique columnns) for witch the provided ORM
+// object has valid data. The order in which they are traversed matches the order defined
+// in the schema.
+// By `valid data` we mean non-default data.
+func (oa ORMAPI) NewCondition(tableName string, data interface{}, index ...string) ([]interface{}, error) {
+	var conditions []interface{}
+	var condIndex [][]string
+
+	table, ok := oa.schema.Tables[tableName]
+	if !ok {
+		return nil, NewErrNoTable(tableName)
+	}
+	objPtrVal := reflect.ValueOf(data)
+	if objPtrVal.Type().Kind() != reflect.Ptr {
+		return nil, NewErrWrongType("ORMAPI.NewCondition", "pointer to a struct", data)
+	}
+	objVal := reflect.Indirect(objPtrVal)
+	fields, err := oa.getORMFields(&table, objVal.Type())
+	if err != nil {
+		return nil, err
+	}
+
+	// If index is provided, use it. If not, inspect the schema (and include _uuid)
+	if len(index) > 0 {
+		condIndex = append(condIndex, index)
+	} else {
+		var err error
+		condIndex, err = oa.getValidORMIndexes(&table, fields, objVal)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(condIndex) == 0 {
+		return nil, fmt.Errorf("Failed to find a valid index")
+	}
+
+	// Pick the first valid index
+	for _, col := range condIndex[0] {
+		fieldName, _ := fields[col]
+		fieldVal := objVal.FieldByName(fieldName)
+
+		column, err := oa.schema.GetColumn(tableName, col)
+		if err != nil {
+			return nil, err
+		}
+		ovsVal, err := NativeToOvs(column, fieldVal.Interface())
+		if err != nil {
+			return nil, err
+		}
+		conditions = append(conditions, []interface{}{col, "==", ovsVal})
+	}
+	return conditions, nil
+}
+
+// NewMutation returns a valid mutation to be used inside a Operation
+// It accepts native golang types (sets and maps)
+// TODO: check mutator validity
+func (oa ORMAPI) NewMutation(tableName, columnName, mutator string, value interface{}) ([]interface{}, error) {
+	return NativeAPI{schema: oa.schema}.NewMutation(tableName, columnName, mutator, value)
+}
+
 func (oa ORMAPI) getORMFields(table *TableSchema, objType reflect.Type) (ormFields, error) {
 	fields := make(ormFields, objType.NumField())
 	for i := 0; i < objType.NumField(); i++ {
@@ -179,14 +250,35 @@ func (oa ORMAPI) getORMFields(table *TableSchema, objType reflect.Type) (ormFiel
 	return fields, nil
 }
 
-// NewCondition returns a valid condition to be used inside a Operation
-// Use the native API
-func (oa ORMAPI) NewCondition(tableName, columnName, function string, value interface{}) ([]interface{}, error) {
-	return NativeAPI{schema: oa.schema}.NewCondition(tableName, columnName, function, value)
-}
+// getValidORMIndexes inspects the object and returns the a list of indexes (set of columns) for witch
+// the object has non-default values
+func (oa ORMAPI) getValidORMIndexes(table *TableSchema, fields ormFields, objVal reflect.Value) ([][]string, error) {
+	var validIndexes [][]string
+	var possibleIndexes [][]string
 
-// NewMutation returns a valid mutation to be used inside a Operation
-// It accepts native golang types (sets and maps)
-func (oa ORMAPI) NewMutation(tableName, columnName, mutator string, value interface{}) ([]interface{}, error) {
-	return NativeAPI{schema: oa.schema}.NewMutation(tableName, columnName, mutator, value)
+	possibleIndexes = append(possibleIndexes, []string{"_uuid"})
+	for _, columnSet := range table.Indexes {
+		possibleIndexes = append(possibleIndexes, columnSet)
+	}
+
+	// Iterate through indexes and validate them
+OUTER:
+	for _, idx := range possibleIndexes {
+		for _, col := range idx {
+			fieldName, ok := fields[col]
+			if !ok {
+				continue OUTER
+			}
+			columnSchema, err := table.GetColumn(col)
+			if err != nil {
+				continue OUTER
+			}
+			fieldVal := objVal.FieldByName(fieldName)
+			if !fieldVal.IsValid() || IsDefaultValue(columnSchema, fieldVal.Interface()) {
+				continue OUTER
+			}
+		}
+		validIndexes = append(validIndexes, idx)
+	}
+	return validIndexes, nil
 }
