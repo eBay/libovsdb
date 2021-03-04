@@ -107,6 +107,23 @@ func TestORMNewRow(t *testing.T) {
 			}
 		}
 	}
+	// Test selected cols
+	row2, err := api.NewRow("TestTable", &orm, "aSet", "aMap")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(row2) != 2 {
+		t.Errorf("Expected row to be as long as the list of given columns")
+	}
+
+	// Test selected cols
+	row3, err := api.NewRow("TestTable", &orm, "nonexisting")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(row3) != 0 {
+		t.Errorf("Expected row to be as long as the list of valid given columns")
+	}
 }
 
 func TestORMCondition(t *testing.T) {

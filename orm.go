@@ -105,7 +105,10 @@ func (oa ORMAPI) GetData(tableName string, ovsData map[string]interface{}, resul
 }
 
 // NewRow transforms an ORM struct to a map[string] interface{} that can be used as libovsdb.Row
-func (oa ORMAPI) NewRow(tableName string, data interface{}) (map[string]interface{}, error) {
+// By default all non-default values in the ORM struct will be used.
+// If columns are explicitly provided, the resulting row will only contain such columns (regardless of the
+// content of the associated field in the ORM struct).
+func (oa ORMAPI) NewRow(tableName string, data interface{}, columns ...string) (map[string]interface{}, error) {
 	table, ok := oa.schema.Tables[tableName]
 	if !ok {
 		return nil, NewErrNoTable(tableName)
@@ -115,21 +118,36 @@ func (oa ORMAPI) NewRow(tableName string, data interface{}) (map[string]interfac
 		return nil, NewErrWrongType("ORMAPI.NewRow", "pointer to a struct", data)
 	}
 	objVal := reflect.Indirect(objPtrVal)
-	fields, err := oa.getORMFields(&table, objVal.Type())
+	ormFields, err := oa.getORMFields(&table, objVal.Type())
 	if err != nil {
 		return nil, err
 	}
+
 	ovsRow := make(map[string]interface{}, len(table.Columns))
 	for name, column := range table.Columns {
-		fieldName, ok := fields[name]
+		fieldName, ok := ormFields[name]
 		if !ok {
 			// If provided struct does not have a field to hold this value, skip it
 			continue
 		}
 
+		if len(columns) > 0 {
+			found := false
+			for _, col := range columns {
+				if col == name {
+					found = true
+					break
+				}
+			}
+			if found == false {
+				continue
+			}
+		}
+
 		nativeElem := objVal.FieldByName(fieldName)
-		// Omit fields with default or nil value
-		if IsDefaultValue(column, nativeElem.Interface()) {
+
+		// Omit fields with default or nil value except if the column was explicitly provided
+		if len(columns) == 0 && IsDefaultValue(column, nativeElem.Interface()) {
 			continue
 		}
 		ovsElem, err := NativeToOvs(column, nativeElem.Interface())
@@ -139,7 +157,6 @@ func (oa ORMAPI) NewRow(tableName string, data interface{}) (map[string]interfac
 		ovsRow[name] = ovsElem
 	}
 	return ovsRow, nil
-
 }
 
 // NewCondition returns a valid condition to be used inside a Operation
