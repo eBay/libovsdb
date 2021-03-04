@@ -214,6 +214,84 @@ func (oa ORMAPI) NewMutation(tableName, columnName, mutator string, value interf
 	return NativeAPI{schema: oa.schema}.NewMutation(tableName, columnName, mutator, value)
 }
 
+// Equal returns whether both models are equal from the DB point of view
+// Two objectes are considered equal if any of the following conditions is true
+// They have a field tagged with column name '_uuid' and their values match
+// For any of the indexes defined in the Table Schema, the values all of its columns are simultaneously equal
+// (as per RFC7047)
+// The values of all of the optional indexes passed as variadic parameter to this function are equal.
+func (oa ORMAPI) Equal(tableName string, lhs, rhs interface{}, indexes ...string) (bool, error) {
+	match := false
+
+	table, ok := oa.schema.Tables[tableName]
+	if !ok {
+		return false, NewErrNoTable(tableName)
+	}
+	// Obtain indexes from lhs
+	lhsValPtr := reflect.ValueOf(lhs)
+	if lhsValPtr.Type().Kind() != reflect.Ptr {
+		return false, NewErrWrongType("ORMAPI.Equal", "pointer to a struct", lhs)
+	}
+	lhsVal := reflect.Indirect(lhsValPtr)
+
+	lfields, err := oa.getORMFields(&table, lhsVal.Type())
+	if err != nil {
+		return false, err
+	}
+	lhsIndexes, err := oa.getValidORMIndexes(&table, lfields, lhsVal)
+	if err != nil {
+		return false, err
+	}
+	lhsIndexes = append(lhsIndexes, indexes)
+
+	// Obtain indexes from rhs
+	rhsValPtr := reflect.ValueOf(rhs)
+	if rhsValPtr.Type().Kind() != reflect.Ptr {
+		return false, NewErrWrongType("ORMAPI.Equal", "pointer to a struct", rhs)
+	}
+	rhsVal := reflect.Indirect(rhsValPtr)
+
+	rfields, err := oa.getORMFields(&table, rhsVal.Type())
+	if err != nil {
+		return false, err
+	}
+	rhsIndexes, err := oa.getValidORMIndexes(&table, rfields, rhsVal)
+	if err != nil {
+		return false, err
+	}
+	rhsIndexes = append(rhsIndexes, indexes)
+
+	for _, lidx := range lhsIndexes {
+		for _, ridx := range rhsIndexes {
+			if reflect.DeepEqual(ridx, lidx) {
+				// All columns in an index must be simultaneously equal
+				for _, col := range lidx {
+					lfieldName, ok := lfields[col]
+					if !ok {
+						break
+					}
+					lval := reflect.Indirect(reflect.ValueOf(lhs)).FieldByName(lfieldName)
+					rfieldName, ok := rfields[col]
+					if !ok {
+						break
+					}
+					rval := reflect.Indirect(reflect.ValueOf(rhs)).FieldByName(rfieldName)
+					if reflect.DeepEqual(lval.Interface(), rval.Interface()) {
+						match = true
+					} else {
+						match = false
+						break
+					}
+				}
+				if match == true {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
+}
+
 func (oa ORMAPI) getORMFields(table *TableSchema, objType reflect.Type) (ormFields, error) {
 	fields := make(ormFields, objType.NumField())
 	for i := 0; i < objType.NumField(); i++ {
