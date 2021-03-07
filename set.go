@@ -33,10 +33,13 @@ func NewOvsSet(goSlice interface{}) (*OvsSet, error) {
 
 // MarshalJSON wil marshal an OVSDB style set in to a JSON byte array
 func (o OvsSet) MarshalJSON() ([]byte, error) {
-	var oSet []interface{}
-	oSet = append(oSet, "set")
-	oSet = append(oSet, o.GoSet)
-	return json.Marshal(oSet)
+	if len(o.GoSet) > 0 {
+		var oSet []interface{}
+		oSet = append(oSet, "set")
+		oSet = append(oSet, o.GoSet)
+		return json.Marshal(oSet)
+	}
+	return []byte("[\"set\",[]]"), nil
 }
 
 // UnmarshalJSON will unmarshal a JSON byte array to an OVSDB style set
