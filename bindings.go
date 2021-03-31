@@ -94,12 +94,18 @@ func nativeType(column *ColumnSchema) reflect.Type {
 func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error) {
 	naType := nativeType(column)
 	switch column.Type {
-	case TypeInteger, TypeReal, TypeString, TypeBoolean, TypeEnum:
+	case TypeReal, TypeString, TypeBoolean, TypeEnum:
 		if reflect.TypeOf(ovsElem) != naType {
 			return nil, NewErrWrongType("OvsToNative", naType.String(), ovsElem)
 		}
 		// Atomic types should have the same underlying type
 		return ovsElem, nil
+	case TypeInteger:
+		// Default decoding of numbers is float64, convert them to int
+		if !reflect.TypeOf(ovsElem).ConvertibleTo(naType) {
+			return nil, NewErrWrongType("OvsToNative", fmt.Sprintf("Convertible to %s", naType), ovsElem)
+		}
+		return reflect.ValueOf(ovsElem).Convert(naType).Interface(), nil
 	case TypeUUID:
 		uuid, ok := ovsElem.(UUID)
 		if !ok {

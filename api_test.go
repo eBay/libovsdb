@@ -27,6 +27,8 @@ var (
 	}
 	aFloat = 42.00
 
+	aInt = 42
+
 	aFloatSet = []float64{
 		3.14,
 		2.71,
