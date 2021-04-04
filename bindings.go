@@ -33,9 +33,9 @@ func NewErrWrongType(from, expected string, got interface{}) error {
 	}
 }
 
-// nativeTypeFromBasic returns the native type that can hold a value of an
+// NativeTypeFromBasic returns the native type that can hold a value of an
 // BasicType type
-func nativeTypeFromBasic(basicType string) reflect.Type {
+func NativeTypeFromBasic(basicType string) reflect.Type {
 	switch basicType {
 	case TypeInteger:
 		return intType
@@ -66,24 +66,24 @@ func nativeValueOf(elem interface{}, elemType ExtendedType) (reflect.Value, erro
 
 }
 
-//nativeType returns the reflect.Type that can hold the value of a column
-//OVS Type to Native Type convertions:
+// NativeType returns the reflect.Type that can hold the value of a column
+// OVS Type to Native Type convertions:
 // OVS sets -> go slices
 // OVS uuid -> go strings
 // OVS map  -> go map
 // OVS enum -> go native type depending on the type of the enum key
-func nativeType(column *ColumnSchema) reflect.Type {
+func NativeType(column *ColumnSchema) reflect.Type {
 	switch column.Type {
 	case TypeInteger, TypeReal, TypeBoolean, TypeUUID, TypeString:
-		return nativeTypeFromBasic(column.Type)
+		return NativeTypeFromBasic(column.Type)
 	case TypeEnum:
-		return nativeTypeFromBasic(column.TypeObj.Key.Type)
+		return NativeTypeFromBasic(column.TypeObj.Key.Type)
 	case TypeMap:
-		kType := nativeTypeFromBasic(column.TypeObj.Key.Type)
-		vType := nativeTypeFromBasic(column.TypeObj.Value.Type)
+		kType := NativeTypeFromBasic(column.TypeObj.Key.Type)
+		vType := NativeTypeFromBasic(column.TypeObj.Value.Type)
 		return reflect.MapOf(kType, vType)
 	case TypeSet:
-		kType := nativeTypeFromBasic(column.TypeObj.Key.Type)
+		kType := NativeTypeFromBasic(column.TypeObj.Key.Type)
 		return reflect.SliceOf(kType)
 	default:
 		panic(fmt.Errorf("Unknown Extended type %s", column.Type))
@@ -92,7 +92,7 @@ func nativeType(column *ColumnSchema) reflect.Type {
 
 // OvsToNative transforms an ovs type to native one based on the column type information
 func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error) {
-	naType := nativeType(column)
+	naType := NativeType(column)
 	switch column.Type {
 	case TypeInteger, TypeReal, TypeString, TypeBoolean, TypeEnum:
 		if reflect.TypeOf(ovsElem) != naType {
@@ -129,7 +129,7 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 
 		default:
 			nativeSet = reflect.MakeSlice(naType, 0, 1)
-			keyType := nativeTypeFromBasic(column.TypeObj.Key.Type)
+			keyType := NativeTypeFromBasic(column.TypeObj.Key.Type)
 
 			vv, err := nativeValueOf(ovsElem, column.TypeObj.Key.Type)
 			if err != nil {
@@ -173,7 +173,7 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
-	naType := nativeType(column)
+	naType := NativeType(column)
 
 	if t := reflect.TypeOf(rawElem); t != naType {
 		return nil, NewErrWrongType("NativeToOvs", naType.String(), rawElem)
