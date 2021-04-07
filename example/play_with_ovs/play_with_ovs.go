@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
 	"reflect"
 
 	"github.com/ebay/libovsdb"
@@ -57,9 +57,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 
 	brow, err := ovs.API.NewRow(bridgeTable, bridge)
 	if err != nil {
-		fmt.Printf("Row Error: %s", err.Error())
-		os.Exit(1)
-
+		log.Fatalf("Row Error: %s", err.Error())
 	}
 	// simple insert operation
 	insertOp := libovsdb.Operation{
@@ -72,25 +70,26 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	mutation, err := ovs.API.NewMutation(ovsTable, "bridges", "insert", []string{namedUUID})
 	if err != nil {
-		fmt.Printf("Mutation Error: %s", err.Error())
-		os.Exit(1)
+		log.Fatalf("Mutation Error: %s", err.Error())
 	}
 	condition, err := ovs.API.NewCondition(ovsTable, "_uuid", "==", getRootUUID())
 	if err != nil {
-		fmt.Printf("Condition Error: %s", err.Error())
-		os.Exit(1)
+		log.Fatalf("Condition Error: %s", err.Error())
 	}
 
 	// simple mutate operation
 	mutateOp := libovsdb.Operation{
 		Op:        "mutate",
-		Table:     "ovsTable",
+		Table:     ovsTable,
 		Mutations: []interface{}{mutation},
 		Where:     []interface{}{condition},
 	}
 
 	operations := []libovsdb.Operation{insertOp, mutateOp}
-	reply, _ := ovs.Transact(operations...)
+	reply, err := ovs.Transact(operations...)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if len(reply) < len(operations) {
 		fmt.Println("Number of Replies should be atleast equal to number of Operations")
@@ -155,8 +154,7 @@ func main() {
 	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
 
 	if err != nil {
-		fmt.Println("Unable to Connect ", err)
-		os.Exit(1)
+		log.Fatal("Unable to Connect ", err)
 	}
 	var notifier myNotifier
 	ovs.Register(notifier)
