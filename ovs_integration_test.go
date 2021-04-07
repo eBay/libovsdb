@@ -274,10 +274,9 @@ func TestMonitor(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	reply, err := ovs.MonitorAll(nil)
-
-	if reply == nil || err != nil {
-		t.Error("Monitor operation failed with reply=", reply, " and error=", err)
+	err = ovs.MonitorAll(nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	ovs.Disconnect()
 }
@@ -497,7 +496,10 @@ func TestMonitorCancel(t *testing.T) {
 			Modify:  true,
 		}}
 
-	_, _ = ovs.Monitor(monitorID, requests)
+	err = ovs.Monitor(monitorID, requests)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = ovs.MonitorCancel(monitorID)
 

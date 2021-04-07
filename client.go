@@ -22,12 +22,16 @@ type OvsdbClient struct {
 	API           NativeAPI
 	handlers      []NotificationHandler
 	handlersMutex *sync.Mutex
+	Cache         *TableCache
 }
 
 func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
+	cache := newTableCache()
 	ovs := &OvsdbClient{
 		rpcClient:     c,
 		handlersMutex: &sync.Mutex{},
+		handlers:      []NotificationHandler{cache},
+		Cache:         cache,
 	}
 	return ovs
 }
@@ -276,7 +280,7 @@ func (ovs OvsdbClient) Transact(operation ...Operation) ([]OperationResult, erro
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) (*TableUpdates, error) {
+func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
 	requests := make(map[string]MonitorRequest)
 	for table, tableSchema := range ovs.Schema.Tables {
 		var columns []string
@@ -313,8 +317,10 @@ func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 }
 
 // Monitor will provide updates for a given table/column
+// and populate the cache with them. Subsequent updates will be processed
+// by the Update Notifications
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]MonitorRequest) error {
 	var reply TableUpdates
 
 	args := NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
@@ -324,9 +330,10 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]Moni
 	err := ovs.rpcClient.Call("monitor", args, &response)
 	reply = getTableUpdatesFromRawUnmarshal(response)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &reply, err
+	ovs.Cache.populate(reply)
+	return nil
 }
 
 func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]RowUpdate) TableUpdates {

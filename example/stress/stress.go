@@ -34,43 +34,30 @@ func list() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	final, err := ovs.MonitorAll("")
-	if err != nil {
+	if err := ovs.MonitorAll(""); err != nil {
 		log.Fatal(err)
 	}
-	populateCache(ovs, *final)
 }
 func run() {
 	ovs, err := libovsdb.Connect(*connection, "Open_vSwitch", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	initial, _ := ovs.MonitorAll("")
-	if *verbose {
-		fmt.Printf("initial : %v\n\n", initial)
+	if err := ovs.MonitorAll(""); err != nil {
+		log.Fatal(err)
 	}
 
 	// Get root UUID
-OUTER:
-	for table, update := range initial.Updates {
-		if table == "Open_vSwitch" {
-			for uuid := range update.Rows {
-				rootUUID = uuid
-				if *verbose {
-					fmt.Printf("rootUUID is %v", rootUUID)
-				}
-				break OUTER
-			}
+	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
+		rootUUID = uuid
+		if *verbose {
+			fmt.Printf("rootUUID is %v", rootUUID)
 		}
 	}
 
 	// Remove all existing bridges
-	for table, update := range initial.Updates {
-		if table == "Bridge" {
-			for uuid := range update.Rows {
-				deleteBridge(ovs, uuid)
-			}
-		}
+	for _, uuid := range ovs.Cache.Table("Bridge").Rows() {
+		deleteBridge(ovs, uuid)
 	}
 
 	for i := 0; i < *nins; i++ {
