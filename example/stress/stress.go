@@ -30,7 +30,7 @@ var (
 )
 
 func list() {
-	ovs, err := libovsdb.Connect(*connection, nil)
+	ovs, err := libovsdb.Connect(*connection, "Open_vSwitch", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func list() {
 	populateCache(ovs, *final)
 }
 func run() {
-	ovs, err := libovsdb.Connect(*connection, nil)
+	ovs, err := libovsdb.Connect(*connection, "Open_vSwitch", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
 			empty := libovsdb.Row{}
 			if !reflect.DeepEqual(row.New, empty) {
 				if *api == "native" {
-					rowData, err := ovs.Apis["Open_vSwitch"].GetRowData(table, &row.New)
+					rowData, err := ovs.API.GetRowData(table, &row.New)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -133,15 +133,15 @@ func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 	var mutCondition []interface{}
 
 	if *api == "native" {
-		delCondition, err = ovs.Apis["Open_vSwitch"].NewCondition("Bridge", "_uuid", "==", uuid)
+		delCondition, err = ovs.API.NewCondition("Bridge", "_uuid", "==", uuid)
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
+		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutCondition, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
+		mutCondition, err = ovs.API.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -198,7 +198,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 		bridge["datapath_id"] = datapathID
 		nbridge["external_ids"] = externalIds
 
-		bridge, err = ovs.Apis["Open_vSwitch"].NewRow("Bridge", nbridge)
+		bridge, err = ovs.API.NewRow("Bridge", nbridge)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -234,11 +234,11 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	if *api == "native" {
 		// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
+		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
 		if err != nil {
 			log.Fatalf("Mutation Error: %s", err.Error())
 		}
-		condition, err = ovs.Apis["Open_vSwitch"].NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
+		condition, err = ovs.API.NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatalf("Condition Error: %s", err.Error())
 		}

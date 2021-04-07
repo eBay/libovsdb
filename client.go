@@ -18,8 +18,8 @@ import (
 // OvsdbClient is an OVSDB client
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
-	Schema        map[string]DatabaseSchema
-	Apis          map[string]NativeAPI
+	Schema        DatabaseSchema
+	API           NativeAPI
 	handlers      []NotificationHandler
 	handlersMutex *sync.Mutex
 }
@@ -27,7 +27,6 @@ type OvsdbClient struct {
 func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 	ovs := &OvsdbClient{
 		rpcClient:     c,
-		Schema:        make(map[string]DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
 	return ovs
@@ -51,7 +50,7 @@ const (
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods
 // If address is empty, use default address for specified protocol
-func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
+func Connect(endpoints string, database string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 	var c net.Conn
 	var err error
 	var u *url.URL
@@ -82,14 +81,14 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 		}
 
 		if err == nil {
-			return newRPC2Client(c)
+			return newRPC2Client(c, database)
 		}
 	}
 
 	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
 }
 
-func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
+func newRPC2Client(conn net.Conn, database string) (*OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	c.SetBlocking(true)
 	c.Handle("echo", echo)
@@ -106,16 +105,25 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 		return nil, err
 	}
 
-	ovs.Apis = make(map[string]NativeAPI)
+	found := false
 	for _, db := range dbs {
-		schema, err := ovs.GetSchema(db)
-		if err == nil {
-			ovs.Schema[db] = *schema
-			ovs.Apis[db] = NewNativeAPI(schema)
-		} else {
-			c.Close()
-			return nil, err
+		if db == database {
+			found = true
+			break
 		}
+	}
+	if !found {
+		c.Close()
+		return nil, fmt.Errorf("target database not found")
+	}
+
+	schema, err := ovs.GetSchema(database)
+	if err == nil {
+		ovs.Schema = *schema
+		ovs.API = NewNativeAPI(schema)
+	} else {
+		c.Close()
+		return nil, err
 	}
 
 	connectionsMutex.Lock()
@@ -235,7 +243,7 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	if err != nil {
 		return nil, err
 	}
-	ovs.Schema[dbName] = reply
+	ovs.Schema = reply
 	return &reply, err
 }
 
@@ -254,12 +262,11 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 // RFC 7047 : transact
 func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
-	db, ok := ovs.Schema[database]
-	if !ok {
-		return nil, fmt.Errorf("invalid Database %q Schema", database)
+	if database != ovs.Schema.Name {
+		return nil, fmt.Errorf("requested database %s doesn't match available schema %s", database, ovs.Schema.Name)
 	}
 
-	if ok := db.validateOperations(operation...); !ok {
+	if ok := ovs.Schema.validateOperations(operation...); !ok {
 		return nil, errors.New("Validation failed for the operation")
 	}
 
@@ -273,13 +280,12 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 
 // MonitorAll is a convenience method to monitor every table/column
 func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
-	schema, ok := ovs.Schema[database]
-	if !ok {
-		return nil, fmt.Errorf("invalid Database %q Schema", database)
+	if database != ovs.Schema.Name {
+		return nil, fmt.Errorf("requested database %s doesn't match available schema %s", database, ovs.Schema.Name)
 	}
 
 	requests := make(map[string]MonitorRequest)
-	for table, tableSchema := range schema.Tables {
+	for table, tableSchema := range ovs.Schema.Tables {
 		var columns []string
 		for column := range tableSchema.Columns {
 			columns = append(columns, column)

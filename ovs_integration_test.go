@@ -12,6 +12,7 @@ import (
 const (
 	defOvsRunDir = "/var/run/openvswitch"
 	defOvsSocket = "db.sock"
+	defDB        = "Open_vSwitch"
 )
 
 var cfg *Config
@@ -46,14 +47,14 @@ func TestConnect(t *testing.T) {
 	go func() {
 		// Use Convenience params. Ignore failure even if any
 
-		_, err := Connect(cfg.Addr, nil)
+		_, err := Connect(cfg.Addr, defDB, nil)
 		if err != nil {
 			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
 		}
 	}()
 
 	go func() {
-		ovs, err := Connect(cfg.Addr, nil)
+		ovs, err := Connect(cfg.Addr, defDB, nil)
 		if err != nil {
 			connected <- false
 		} else {
@@ -78,7 +79,7 @@ func TestListDbs(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -100,7 +101,7 @@ func TestListDbs(t *testing.T) {
 		t.Error("Expected: 'Open_vSwitch'", reply)
 	}
 	var b bytes.Buffer
-	ovs.Schema[reply[0]].Print(&b)
+	ovs.Schema.Print(&b)
 	ovs.Disconnect()
 }
 
@@ -110,7 +111,7 @@ func TestGetSchemas(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -138,7 +139,7 @@ func TestInsertTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -212,7 +213,7 @@ func TestDeleteTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -268,7 +269,7 @@ func TestMonitor(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -287,7 +288,7 @@ func TestNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -318,7 +319,7 @@ func TestRemoveNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -361,7 +362,7 @@ func TestDBSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -389,7 +390,7 @@ func TestTableSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -417,7 +418,7 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -447,7 +448,7 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -482,7 +483,7 @@ func TestColumnSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -507,7 +508,7 @@ func TestMonitorCancel(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}

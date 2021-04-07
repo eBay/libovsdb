@@ -28,7 +28,7 @@ func play(ovs *libovsdb.OvsdbClient) {
 			for table, tableUpdate := range currUpdate.Updates {
 				if table == bridgeTable {
 					for uuid, row := range tableUpdate.Rows {
-						rowData, err := ovs.Apis[ovsDb].GetRowData(bridgeTable, &row.New)
+						rowData, err := ovs.API.GetRowData(bridgeTable, &row.New)
 						if err != nil {
 							fmt.Println("ERROR getting Bridge Data", err)
 						}
@@ -49,14 +49,13 @@ func play(ovs *libovsdb.OvsdbClient) {
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
-	api := ovs.Apis[ovsDb]
 	namedUUID := "gopher"
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
 	bridge["external_ids"] = map[string]string{"purpose": "fun"}
 
-	brow, err := api.NewRow(bridgeTable, bridge)
+	brow, err := ovs.API.NewRow(bridgeTable, bridge)
 	if err != nil {
 		fmt.Printf("Row Error: %s", err.Error())
 		os.Exit(1)
@@ -71,12 +70,12 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 	}
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutation, err := api.NewMutation(ovsTable, "bridges", "insert", []string{namedUUID})
+	mutation, err := ovs.API.NewMutation(ovsTable, "bridges", "insert", []string{namedUUID})
 	if err != nil {
 		fmt.Printf("Mutation Error: %s", err.Error())
 		os.Exit(1)
 	}
-	condition, err := api.NewCondition(ovsTable, "_uuid", "==", getRootUUID())
+	condition, err := ovs.API.NewCondition(ovsTable, "_uuid", "==", getRootUUID())
 	if err != nil {
 		fmt.Printf("Condition Error: %s", err.Error())
 		os.Exit(1)
@@ -150,7 +149,7 @@ func main() {
 	cache = make(map[string]map[string]libovsdb.Row)
 
 	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := libovsdb.Connect("tcp:", nil)
+	ovs, err := libovsdb.Connect("tcp:", "Open_vSwitch", nil)
 
 	// If you prefer to connect to OVS in a specific location :
 	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
