@@ -90,7 +90,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 	}
 
 	operations := []libovsdb.Operation{insertOp, mutateOp}
-	reply, _ := ovs.Transact(ovsDb, operations...)
+	reply, _ := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
 		fmt.Println("Number of Replies should be atleast equal to number of Operations")
@@ -161,7 +161,7 @@ func main() {
 	var notifier myNotifier
 	ovs.Register(notifier)
 
-	initial, _ := ovs.MonitorAll(ovsDb, "")
+	initial, _ := ovs.MonitorAll("")
 	populateCache(*initial)
 
 	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored !`)

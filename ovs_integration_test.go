@@ -180,7 +180,7 @@ func TestInsertTransact(t *testing.T) {
 	}
 
 	operations := []Operation{insertOp, mutateOp}
-	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	reply, err := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
@@ -242,7 +242,7 @@ func TestDeleteTransact(t *testing.T) {
 	}
 
 	operations := []Operation{deleteOp, mutateOp}
-	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	reply, err := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
@@ -274,7 +274,7 @@ func TestMonitor(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	reply, err := ovs.MonitorAll("Open_vSwitch", nil)
+	reply, err := ovs.MonitorAll(nil)
 
 	if reply == nil || err != nil {
 		t.Error("Monitor operation failed with reply=", reply, " and error=", err)
@@ -356,34 +356,6 @@ func (n Notifier) Echo([]interface{}) {
 func (n Notifier) Disconnected(*OvsdbClient) {
 }
 
-func TestDBSchemaValidation(t *testing.T) {
-	SetConfig()
-	if testing.Short() {
-		t.Skip()
-	}
-
-	ovs, err := Connect(cfg.Addr, defDB, nil)
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
-
-	operation := Operation{
-		Op:    "insert",
-		Table: "Bridge",
-		Row:   bridge,
-	}
-
-	_, err = ovs.Transact("Invalid_DB", operation)
-	if err == nil {
-		t.Error("Invalid DB operation Validation failed")
-	}
-
-	ovs.Disconnect()
-}
-
 func TestTableSchemaValidation(t *testing.T) {
 	SetConfig()
 	if testing.Short() {
@@ -403,7 +375,7 @@ func TestTableSchemaValidation(t *testing.T) {
 		Table: "InvalidTable",
 		Row:   bridge,
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Table Name Validation failed")
@@ -433,7 +405,7 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 		Row:   bridge,
 	}
 
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -468,7 +440,7 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 		Table: "Bridge",
 		Rows:  rows,
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -493,7 +465,7 @@ func TestColumnSchemaValidation(t *testing.T) {
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -525,7 +497,7 @@ func TestMonitorCancel(t *testing.T) {
 			Modify:  true,
 		}}
 
-	_, _ = ovs.Monitor("Open_vSwitch", monitorID, requests)
+	_, _ = ovs.Monitor(monitorID, requests)
 
 	err = ovs.MonitorCancel(monitorID)
 

@@ -260,17 +260,14 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 
 // Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
+func (ovs OvsdbClient) Transact(operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
-	if database != ovs.Schema.Name {
-		return nil, fmt.Errorf("requested database %s doesn't match available schema %s", database, ovs.Schema.Name)
-	}
 
 	if ok := ovs.Schema.validateOperations(operation...); !ok {
 		return nil, errors.New("Validation failed for the operation")
 	}
 
-	args := NewTransactArgs(database, operation...)
+	args := NewTransactArgs(ovs.Schema.Name, operation...)
 	err := ovs.rpcClient.Call("transact", args, &reply)
 	if err != nil {
 		return nil, err
@@ -279,11 +276,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
-	if database != ovs.Schema.Name {
-		return nil, fmt.Errorf("requested database %s doesn't match available schema %s", database, ovs.Schema.Name)
-	}
-
+func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) (*TableUpdates, error) {
 	requests := make(map[string]MonitorRequest)
 	for table, tableSchema := range ovs.Schema.Tables {
 		var columns []string
@@ -299,7 +292,7 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 				Modify:  true,
 			}}
 	}
-	return ovs.Monitor(database, jsonContext, requests)
+	return ovs.Monitor(jsonContext, requests)
 }
 
 // MonitorCancel will request cancel a previously issued monitor request
@@ -321,10 +314,10 @@ func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 
 // Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
 	var reply TableUpdates
 
-	args := NewMonitorArgs(database, jsonContext, requests)
+	args := NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
 
 	// This totally sucks. Refer to golang JSON issue #6213
 	var response map[string]map[string]RowUpdate

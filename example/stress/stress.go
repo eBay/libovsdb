@@ -34,7 +34,7 @@ func list() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	final, err := ovs.MonitorAll("Open_vSwitch", "")
+	final, err := ovs.MonitorAll("")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func run() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	initial, _ := ovs.MonitorAll("Open_vSwitch", "")
+	initial, _ := ovs.MonitorAll("")
 	if *verbose {
 		fmt.Printf("initial : %v\n\n", initial)
 	}
@@ -79,7 +79,7 @@ OUTER:
 }
 
 func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bool, uuid string) {
-	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+	reply, _ := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
 		fmt.Println("Number of Replies should be atleast equal to number of Operations")
